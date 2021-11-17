@@ -43,11 +43,10 @@ def handle_message(event):
     get_message = event.message.text
 
     route = route_message(get_message)
-    reply_msg = ''
     if route == Route.Realtime:
         reply_msg = get_realtime()
-    reply = TextSendMessage(text=f"{reply_msg}")
-    line_bot_api.reply_message(event.reply_token, reply)
+        reply = TextSendMessage(text=f"{reply_msg}")
+        line_bot_api.reply_message(event.reply_token, reply)
 
 def route_message(msg) -> Route:
     if msg.lower() in ('go', 'start'):
@@ -70,7 +69,7 @@ def get_realtime():
     reply_msgs = []
     for sorted_zone in sorted_zones:
         reply_msgs.append(f"{sorted_zone['location']}({sorted_zone['distance']})")
-    return '\n'.join(reply_msgs) if len(reply_msgs) > 0 else ''
+    return '\n'.join(reply_msgs) if len(reply_msgs) > 0 else '附近沒有垃圾車'
 
 def get_distance(longitude, latitude):
     lng_dist = (float(longitude) - home_lng) * 10000
