@@ -20,7 +20,7 @@ realtime_data_url = os.environ.get("REALTIME_DATA_URL")
 home_city = '三重區'
 home_lat = 25.078088032882395
 home_lng = 121.49169181080875
-range_distance = 500
+range_distance = 1500
 
 class Route(enum.IntEnum):
     Realtime = 1
