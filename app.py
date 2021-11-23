@@ -130,8 +130,9 @@ def parsePoP6HData(times):
             time_text = '下午'
         elif start.hour == 18:
             time_text = '晚上'
-        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text} 降雨機率:{t.get("elementValue")}%')
-    return '\n'.join(msgs)
+        pop = t.get("elementValue")[0].get('value')
+        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text}:{pop}%')
+    return '降雨機率\n' + '\n'.join(msgs)
 
 def parseATData(times):
     max_at = 0
@@ -139,16 +140,17 @@ def parseATData(times):
     start_dt = datetime.strptime(times[0].get('dataTime'),'%Y-%m-%d %H:%M:%S') if len(times) > 0 else None
     end_dt = datetime.strptime(times[-1].get('dataTime'),'%Y-%m-%d %H:%M:%S') if len(times) > 0 else None
     for t in times:
-        time_text = ''
         at = int(t.get('elementValue')[0].get('value'))
         if at > max_at:
             max_at = at
         if at < min_at:
             min_at = at
     if start_dt and end_dt and max_at > 0 and min_at < 100:
-        time_text = f'{start_dt.month}/{start_dt.day}({weekDayText(start_dt.weekday())}){start_dt.hour}時 ~ '
-        time_text += f'{end_dt.month}/{end_dt.day}({weekDayText(end_dt.weekday())}){end_dt.hour}時\n'
-        at_text = f'體館溫度:{min_at}度 ~ {max_at}度%'
+        at_text = '體感溫度\n'
+        at_text += f'{start_dt.month}/{start_dt.day}({weekDayText(start_dt.weekday())}){start_dt.hour}時 ~ '
+        at_text += f'{end_dt.month}/{end_dt.day}({weekDayText(end_dt.weekday())}){end_dt.hour}時\n'
+        at_text += f'{min_at}度 ~ {max_at}度%'
+        return at_text
     return None
 
 def weekDayText(weekday):
