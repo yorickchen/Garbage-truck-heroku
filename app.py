@@ -145,22 +145,26 @@ def parsePoP6HData(times):
     return '降雨機率\n' + '\n'.join(msgs)
 
 def parseATData(times):
-    max_at = 0
-    min_at = 100
-    start_dt = datetime.strptime(times[0].get('dataTime'),'%Y-%m-%d %H:%M:%S') if len(times) > 0 else None
-    end_dt = datetime.strptime(times[-1].get('dataTime'),'%Y-%m-%d %H:%M:%S') if len(times) > 0 else None
+    dts = {}
     for t in times:
-        at = int(t.get('elementValue')[0].get('value'))
-        if at > max_at:
-            max_at = at
-        if at < min_at:
-            min_at = at
-    if start_dt and end_dt and max_at > 0 and min_at < 100:
-        at_text = f'體感溫度 {min_at}度 ~ {max_at}度\n'
-        at_text += f'{start_dt.month}/{start_dt.day}({weekDayText(start_dt.weekday())}){start_dt.hour}時 ~ '
-        at_text += f'{end_dt.month}/{end_dt.day}({weekDayText(end_dt.weekday())}){end_dt.hour}時\n'
-        return at_text
-    return None
+        dt = datetime.strptime(t.get('dataTime'),'%Y-%m-%d %H:%M:%S')
+        dt_key = f'{dt.month}/{dt.day}({weekDayText(dt.weekday())})'
+        if dt_key not in dts:
+            dts[dt_key] = []
+        dts[dt_key].append(t)
+    at_text = ''
+    for k, data in dts.items():
+        max_at = 0
+        min_at = 100
+        for d in data:
+            at = int(d.get('elementValue')[0].get('value'))
+            if at > max_at:
+                max_at = at
+            if at < min_at:
+                min_at = at
+        if max_at > 0 and min_at < 100:
+            at_text += f'{k} {min_at}℃ ~ {max_at}℃\n'
+    return at_text
 
 def weekDayText(weekday):
     if weekday == 0:
