@@ -152,7 +152,7 @@ def parseATData(times):
         if dt_key not in dts:
             dts[dt_key] = []
         dts[dt_key].append(t)
-    at_text = ''
+    at_text = '體感溫度\n'
     for k, data in dts.items():
         max_at = 0
         min_at = 100
