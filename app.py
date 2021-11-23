@@ -114,11 +114,22 @@ def get_weather():
                     msg = parseATData(record.get('time'))
                     if msg:
                         msgs.append(msg)
-            return '\n'.join(msgs)
-    return None                 
+            return '\n\n'.join(msgs)
+    return None          
+
+def getWeatherEmoji(pop):
+    if pop <= 10:
+        return chr(int('0x1000A9', 16))
+    elif pop <= 40 and pop > 10:
+        return chr(int('0x1000AC', 16))
+    elif pop <= 80 and pop > 40:
+        return chr(int('0x10003A', 16))
+    else:
+        return chr(int('0x1000AA', 16))
 
 def parsePoP6HData(times):
     msgs = []
+    pops = []
     for t in times:
         time_text = ''
         start = datetime.strptime(t.get('startTime'),'%Y-%m-%d %H:%M:%S')
@@ -131,8 +142,12 @@ def parsePoP6HData(times):
         elif start.hour == 18:
             time_text = '晚上'
         pop = t.get("elementValue")[0].get('value')
+        pops.append(int(pop))
         msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text}:{pop}%')
-    return '降雨機率\n' + '\n'.join(msgs)
+    avg_pop = 0
+    if len(pops) > 0:
+        avg_pop = int(sum(pops) / len(pops))
+    return '降雨機率 ' + getWeatherEmoji(avg_pop) + '\n' + '\n'.join(msgs)
 
 def parseATData(times):
     max_at = 0
