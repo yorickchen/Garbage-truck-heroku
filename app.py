@@ -122,7 +122,7 @@ def getWeatherEmoji(pop):
         return chr(int('0x1000A9', 16))
     elif pop <= 40 and pop > 10:
         return chr(int('0x1000AC', 16))
-    elif pop <= 80 and pop > 40:
+    elif pop <= 70 and pop > 40:
         return chr(int('0x10003A', 16))
     else:
         return chr(int('0x1000AA', 16))
