@@ -64,6 +64,8 @@ def route_message(msg) -> Route:
         return Route.Realtime
     elif msg.lower() in ('weather', '天氣', '氣象'):
         return Route.Weather
+    else:
+        print(msg)
     return None
 
 def get_realtime():
