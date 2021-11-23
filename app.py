@@ -114,7 +114,7 @@ def get_weather():
                     msg = parseATData(record.get('time'))
                     if msg:
                         msgs.append(msg)
-            return '\n\n'.join(msgs)
+            return '\n'.join(msgs)
     return None          
 
 def getWeatherEmoji(pop):
