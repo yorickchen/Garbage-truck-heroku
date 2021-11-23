@@ -146,7 +146,7 @@ def parseATData(times):
         if at < min_at:
             min_at = at
     if start_dt and end_dt and max_at > 0 and min_at < 100:
-        time_text = f'{start.month}/{start.day}({weekDayText(start.weekday())}){start.hour}時 ~ '
+        time_text = f'{start_dt.month}/{start_dt.day}({weekDayText(start_dt.weekday())}){start_dt.hour}時 ~ '
         time_text += f'{end_dt.month}/{end_dt.day}({weekDayText(end_dt.weekday())}){end_dt.hour}時\n'
         at_text = f'體館溫度:{min_at}度 ~ {max_at}度%'
     return None
