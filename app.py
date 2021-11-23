@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Flask, abort, request
 
@@ -129,25 +129,20 @@ def getWeatherEmoji(pop):
 
 def parsePoP6HData(times):
     msgs = []
-    pops = []
     for t in times:
         time_text = ''
         start = datetime.strptime(t.get('startTime'),'%Y-%m-%d %H:%M:%S')
         if start.hour == 0:
-            time_text = '清晨'
+            continue # ignore 清晨
         elif start.hour == 6:
             time_text = '上午'
         elif start.hour == 12:
             time_text = '下午'
         elif start.hour == 18:
             time_text = '晚上'
-        pop = t.get("elementValue")[0].get('value')
-        pops.append(int(pop))
-        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text}:{pop}%')
-    avg_pop = 0
-    if len(pops) > 0:
-        avg_pop = int(sum(pops) / len(pops))
-    return '降雨機率 ' + getWeatherEmoji(avg_pop) + '\n' + '\n'.join(msgs)
+        pop = int(t.get("elementValue")[0].get('value'))
+        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text}:{pop}%{getWeatherEmoji(pop)}')
+    return '降雨機率\n' + '\n'.join(msgs)
 
 def parseATData(times):
     max_at = 0
@@ -161,10 +156,9 @@ def parseATData(times):
         if at < min_at:
             min_at = at
     if start_dt and end_dt and max_at > 0 and min_at < 100:
-        at_text = '體感溫度\n'
+        at_text = f'體感溫度 {min_at}度 ~ {max_at}度\n'
         at_text += f'{start_dt.month}/{start_dt.day}({weekDayText(start_dt.weekday())}){start_dt.hour}時 ~ '
         at_text += f'{end_dt.month}/{end_dt.day}({weekDayText(end_dt.weekday())}){end_dt.hour}時\n'
-        at_text += f'{min_at}度 ~ {max_at}度%'
         return at_text
     return None
 
