@@ -130,7 +130,7 @@ def parsePoP6HData(times):
             time_text = '下午'
         elif start.hour == 18:
             time_text = '晚上'
-        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text} 降雨機率:{t.get('elementValue')}%')
+        msgs.append(f'{start.month}/{start.day}({weekDayText(start.weekday())}){time_text} 降雨機率:{t.get("elementValue")}%')
     return '\n'.join(msgs)
 
 def parseATData(times):
