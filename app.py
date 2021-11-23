@@ -49,7 +49,6 @@ def callback():
 def handle_message(event):
     get_message = event.message.text
 
-    print(event.message)
     route = route_message(get_message)
     reply_msg = None
     if route == Route.Realtime:
@@ -58,9 +57,6 @@ def handle_message(event):
         reply_msg = get_weather()
     if reply_msg:
         reply = TextSendMessage(text=f"{reply_msg}")
-        line_bot_api.reply_message(event.reply_token, reply)
-    else:
-        reply = TextSendMessage(text=chr(int('0x1000AD', 16)))
         line_bot_api.reply_message(event.reply_token, reply)
 
 def route_message(msg) -> Route:
