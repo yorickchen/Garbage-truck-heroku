@@ -11,6 +11,7 @@ from linebot.models import MessageEvent, TextMessage, TextSendMessage
 import enum
 import math
 import requests
+import csv
 from urllib.parse import urlencode
 
 app = Flask(__name__)
@@ -18,6 +19,7 @@ app = Flask(__name__)
 line_bot_api = LineBotApi(os.environ.get("CHANNEL_ACCESS_TOKEN"))
 handler = WebhookHandler(os.environ.get("CHANNEL_SECRET"))
 realtime_data_url = os.environ.get("REALTIME_DATA_URL")
+covid19_screen_data_url = os.environ.get("COVID19_SCREEN_DATA_URL")
 weather_tw_url = os.environ.get("WEATHER_TW_URL")
 weather_tw_token = os.environ.get("WEATHER_TW_TOKEN")
 home_city = '三重區'
@@ -31,6 +33,7 @@ class WeatherMethod(enum.Enum):
 class Route(enum.IntEnum):
     Realtime = 1
     Weather = 2
+    Covid19Screen = 3
 
 @app.route("/", methods=["GET", "POST"])
 def callback():
@@ -55,6 +58,8 @@ def handle_message(event):
         reply_msg = get_realtime()
     elif route == Route.Weather:
         reply_msg = get_weather()
+    elif route == Route.Covid19Screen:
+        reply_msg = get_covid19_screening()
     if reply_msg:
         reply = TextSendMessage(text=f"{reply_msg}")
         line_bot_api.reply_message(event.reply_token, reply)
@@ -64,6 +69,8 @@ def route_message(msg) -> Route:
         return Route.Realtime
     elif msg.lower() in ('weather', '天氣', '氣象'):
         return Route.Weather
+    elif msg.lower() in ('篩檢', '篩檢量', '檢測', '檢測量'):
+        return Route.Covid19Screen
     return None
 
 def get_realtime():
@@ -88,6 +95,21 @@ def get_distance(longitude, latitude):
     lat_dist = (float(latitude) - home_lat) * 10000
     distance = math.pow(lng_dist, 2) + math.pow(lat_dist, 2)
     return math.pow(distance, 0.5) * 10
+
+def get_covid19_screening():
+    msg = ''
+    try:
+        today = datetime.today().date()
+        resp = requests.get(covid19_screen_data_url)
+        rows = csv.reader(resp.text.splitlines())
+        for i, row in enumerate(rows):
+            if i > 2:
+                dt = datetime.strptime(row[0],'%Y/%m/%d').date()
+                if dt < today and (today - dt).days < 14:
+                    msg += f'{row[0]}({weekDayText(dt.weekday())}): {int(float(row[-1]))}\n'
+    except:
+        msg = 'error'
+    return msg
 
 def get_weather():
     qstr = urlencode({
