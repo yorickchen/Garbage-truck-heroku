@@ -33,6 +33,12 @@ home_city = '三重區'
 home_lat = 25.078088032882395
 home_lng = 121.49169181080875
 range_distance = 250
+city_list = [
+    '高雄市','雲林縣','金門縣','連江縣','苗栗縣','花蓮縣','臺東縣','臺南市','臺北市','臺中市',
+    '澎湖縣','桃園市','新竹縣','新竹市','新北市','彰化縣','屏東縣','宜蘭縣','基隆市','嘉義縣',
+    '嘉義市','南投縣'
+]
+toilet_distance = 300
 
 class WeatherMethod(enum.Enum):
     TwoDay = 'F-D0047-069'
@@ -90,7 +96,8 @@ def handle_message(event):
 
 @handler.add(MessageEvent, message=LocationMessage)
 def handle_location_message(event):
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="獲取位置 "+event.message.address ))
+    reply_msg = get_toilets(event.message.latitude, event.message.longitude, event.message.address)
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
 
 def route_message(msg) -> Route:
     if msg.lower() in ('go', '垃圾'):
@@ -108,7 +115,7 @@ def get_realtime():
     zones = []
     for row in rows.json():
         if row.get('cityName') == home_city:
-            distance = get_distance(row.get('longitude'), row.get('latitude'))
+            distance = get_home_distance(row.get('longitude'), row.get('latitude'))
             if distance < range_distance:
                 zones.append({
                     'location': row.get('location'),
@@ -120,11 +127,20 @@ def get_realtime():
         reply_msgs.append(f"{sorted_zone['location']}({sorted_zone['distance']})")
     return '\n'.join(reply_msgs) if len(reply_msgs) > 0 else '附近沒有垃圾車'
 
-def get_distance(longitude, latitude):
-    lng_dist = (float(longitude) - home_lng) * 10000
-    lat_dist = (float(latitude) - home_lat) * 10000
-    distance = math.pow(lng_dist, 2) + math.pow(lat_dist, 2)
-    return math.pow(distance, 0.5) * 10
+def get_distance(lat1, lng1, lat2, lng2):
+    EARTH_REDIUS = 6378.137
+    def rad(d):
+        return d * math.pi / 180.0
+    radLat1 = rad(lat1)
+    radLat2 = rad(lat2)
+    a = radLat1 - radLat2
+    b = rad(lng1) - rad(lng2)
+    s = 2 * math.asin(math.sqrt(math.pow(math.sin(a/2), 2) + math.cos(radLat1) * math.cos(radLat2) * math.pow(math.sin(b/2), 2)))
+    s = s * EARTH_REDIUS
+    return s * 1000 # 公尺
+
+def get_home_distance(longitude, latitude):
+    return get_distance(float(latitude), float(longitude), home_lat, home_lng)
 
 def get_covid19_screening():
     msg = ''
@@ -168,6 +184,36 @@ def get_weather():
                         msgs.append(msg)
             return '\n'.join(msgs)
     return None          
+
+def get_toilets(latitude, longitude, address):
+    match_city = None
+    if address:
+        # 有地址的話, 嘗試取出縣市名稱
+        for city in city_list:
+            if city in address:
+                match_city = city
+                break
+    db = LabRedis(host=redis_host, port=int(redis_port), pwd=redis_pwd)
+    if match_city:
+        check_cities = [match_city]
+    else:
+        check_cities = city_list
+    for check_city in check_cities:
+        zone_toilets = [] # 範圍內的廁所
+        toilets = db.get_json(check_city)
+        for toilet in toilets:
+            distance = get_distance(float(toilet['lat']), float(toilet['lng']), latitude, longitude)
+            if distance < toilet_distance:
+                toilet['distance'] = distance
+                zone_toilets.append(toilet)
+        if len(zone_toilets) > 0:
+            msg = f'找到附近{toilet_distance}公尺內的公廁:\n'
+            # 排序後取前5筆
+            zone_toilets.sort(key=lambda k: k['distance'])
+            for zone_toilet in zone_toilets[:5]:
+                msg += f"{zone_toilet['name']}({int(zone_toilet['distance'])}m)\n{zone_toilet['address']}\n{zone_toilet['grade']}/{zone_toilet['type']}\n\n"
+            return msg
+    return f'附近{toilet_distance}公尺內找無公廁'
 
 def update_toilet():
     offset = 0
