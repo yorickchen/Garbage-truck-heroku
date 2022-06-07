@@ -209,9 +209,9 @@ def get_toilets(latitude, longitude, address):
                 zone_toilets.append(toilet)
         if len(zone_toilets) > 0:
             msgs = []
-            # 排序後取前3筆
+            # 排序後取前4筆
             zone_toilets.sort(key=lambda k: k['distance'])
-            for zone_toilet in zone_toilets[:3]:
+            for zone_toilet in zone_toilets[:4]:
                 msgs.append(LocationSendMessage(
                     title=f"{zone_toilet['name']}({zone_toilet['grade']})",
                     address=zone_toilet['address'],
