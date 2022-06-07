@@ -6,12 +6,14 @@ from flask import Flask, abort, request
 # https://github.com/line/line-bot-sdk-python
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, LocationMessage
 
 import enum
 import math
 import requests
 import csv
+import redis
+import json
 from urllib.parse import urlencode
 
 app = Flask(__name__)
@@ -22,6 +24,11 @@ realtime_data_url = os.environ.get("REALTIME_DATA_URL")
 covid19_screen_data_url = os.environ.get("COVID19_SCREEN_DATA_URL")
 weather_tw_url = os.environ.get("WEATHER_TW_URL")
 weather_tw_token = os.environ.get("WEATHER_TW_TOKEN")
+epa_gov_token = os.environ.get("EPA_GOV_TOKEN")
+redis_host = os.environ.get("REDIS_HOST")
+redis_port = os.environ.get("REDIS_PORT")
+redis_pwd = os.environ.get("REDIS_PWD")
+epa_gov_url = 'https://data.epa.gov.tw/api/v2/FAC_P_07'
 home_city = '三重區'
 home_lat = 25.078088032882395
 home_lng = 121.49169181080875
@@ -34,6 +41,21 @@ class Route(enum.IntEnum):
     Realtime = 1
     Weather = 2
     Covid19Screen = 3
+    UpdateToilet = 4
+    Toilet = 5
+
+class LabRedis(): 
+    def __init__(self, host: str, port: int, pwd: str):
+        self.redis = redis.StrictRedis(host=host, port=port, password=pwd, charset='utf-8')
+    
+    def set_json(self, key, value):
+        self.redis.set(key, json.dumps(value))
+    
+    def get_json(self, key):
+        value = self.redis.get(key)
+        if value:
+            return json.loads(value)
+        return None
 
 @app.route("/", methods=["GET", "POST"])
 def callback():
@@ -60,9 +82,15 @@ def handle_message(event):
         reply_msg = get_weather()
     elif route == Route.Covid19Screen:
         reply_msg = get_covid19_screening()
+    elif route == Route.UpdateToilet:
+        reply_msg = update_toilet()
     if reply_msg:
         reply = TextSendMessage(text=f"{reply_msg}")
         line_bot_api.reply_message(event.reply_token, reply)
+
+@handler.add(MessageEvent, message=LocationMessage)
+def handle_location_message(event):
+    line_bot_api.reply_message(event.reply_token, TextSendMessage(text="獲取位置 "+event.message.address ))
 
 def route_message(msg) -> Route:
     if msg.lower() in ('go', '垃圾'):
@@ -71,6 +99,8 @@ def route_message(msg) -> Route:
         return Route.Weather
     elif msg.lower() in ('篩檢', '篩檢量', '檢測', '檢測量'):
         return Route.Covid19Screen
+    elif msg.lower() in ('更新廁所資料'):
+        return Route.UpdateToilet
     return None
 
 def get_realtime():
@@ -138,6 +168,35 @@ def get_weather():
                         msgs.append(msg)
             return '\n'.join(msgs)
     return None          
+
+def update_toilet():
+    offset = 0
+    limit = 200
+    country_data = dict()
+    while offset >= 0:
+        url = f"{epa_gov_url}?format=json&offset={offset}&limit={limit}&api_key={epa_gov_token}"
+        resp = requests.get(url)
+        if len(resp.json()['records']) > 0:
+            offset += limit
+            for record in resp.json()['records']:
+                country = record['country']
+                if country not in country_data:
+                    country_data[country] = []
+                country_data[country].append({
+                    'name': record['name'],
+                    'address': record['address'],
+                    'lat': record['latitude'],
+                    'lng': record['longitude'],
+                    'grade': record['grade'],
+                    'type': record['type'],
+                    'type2': record['type2']
+                })
+        else:
+            offset = -1
+    db = LabRedis(host=redis_host, port=int(redis_port), pwd=redis_pwd)
+    for _country, data in country_data.items():
+        db.set_json(_country, data)
+    return 'done'
 
 def getWeatherEmoji(pop):
     if pop <= 10:
