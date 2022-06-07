@@ -98,8 +98,7 @@ def handle_message(event):
 def handle_location_message(event):
     reply_msgs = get_toilets(event.message.latitude, event.message.longitude, event.message.address)
     if len(reply_msgs) > 0:
-        for reply_msg in reply_msgs:
-            line_bot_api.reply_message(event.reply_token, reply_msg)
+        line_bot_api.reply_message(event.reply_token, reply_msgs)
 
 def route_message(msg) -> Route:
     if msg.lower() in ('go', '垃圾'):
