@@ -220,7 +220,7 @@ def get_toilets(latitude, longitude, address):
                     longitude=float(zone_toilet['lng'])
                 ))
             msgs.append(TextSendMessage(text=f'找到附近{toilet_distance}公尺內的公廁'))           
-            return msg
+            return msgs
     return [TextSendMessage(text=f'附近{toilet_distance}公尺內找無公廁')]
 
 def update_toilet():
