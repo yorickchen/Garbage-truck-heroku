@@ -6,7 +6,7 @@ from flask import Flask, abort, request
 # https://github.com/line/line-bot-sdk-python
 from linebot import LineBotApi, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import MessageEvent, TextMessage, TextSendMessage, LocationMessage
+from linebot.models import MessageEvent, TextMessage, TextSendMessage, LocationMessage, LocationSendMessage
 
 import enum
 import math
@@ -96,8 +96,10 @@ def handle_message(event):
 
 @handler.add(MessageEvent, message=LocationMessage)
 def handle_location_message(event):
-    reply_msg = get_toilets(event.message.latitude, event.message.longitude, event.message.address)
-    line_bot_api.reply_message(event.reply_token, TextSendMessage(text=reply_msg))
+    reply_msgs = get_toilets(event.message.latitude, event.message.longitude, event.message.address)
+    if len(reply_msgs) > 0:
+        for reply_msg in reply_msgs:
+            line_bot_api.reply_message(event.reply_token, reply_msg)
 
 def route_message(msg) -> Route:
     if msg.lower() in ('go', '垃圾'):
@@ -207,13 +209,19 @@ def get_toilets(latitude, longitude, address):
                 toilet['distance'] = distance
                 zone_toilets.append(toilet)
         if len(zone_toilets) > 0:
-            msg = f'找到附近{toilet_distance}公尺內的公廁:\n'
+            msgs = []
             # 排序後取前5筆
             zone_toilets.sort(key=lambda k: k['distance'])
             for zone_toilet in zone_toilets[:5]:
-                msg += f"{zone_toilet['name']}({int(zone_toilet['distance'])}m)\n{zone_toilet['address']}\n{zone_toilet['grade']}/{zone_toilet['type']}\n\n"
+                msgs.append(LocationSendMessage(
+                    title=f"{zone_toilet['name']}({zone_toilet['grade']})",
+                    address=zone_toilet['address'],
+                    latitude=float(zone_toilet['lat']),
+                    longitude=float(zone_toilet['lng'])
+                ))
+            msgs.append(TextSendMessage(text=f'找到附近{toilet_distance}公尺內的公廁'))           
             return msg
-    return f'附近{toilet_distance}公尺內找無公廁'
+    return [TextSendMessage(text=f'附近{toilet_distance}公尺內找無公廁')]
 
 def update_toilet():
     offset = 0
