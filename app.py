@@ -38,7 +38,7 @@ city_list = [
     '澎湖縣','桃園市','新竹縣','新竹市','新北市','彰化縣','屏東縣','宜蘭縣','基隆市','嘉義縣',
     '嘉義市','南投縣'
 ]
-toilet_distance = 300
+toilet_distance = 100
 
 class WeatherMethod(enum.Enum):
     TwoDay = 'F-D0047-069'
@@ -199,28 +199,32 @@ def get_toilets(latitude, longitude, address):
         check_cities = [match_city]
     else:
         check_cities = city_list
+    search_toilet_distance = toilet_distance
     for check_city in check_cities:
+        search_toilet_distance = toilet_distance
         zone_toilets = [] # 範圍內的廁所
         toilets = db.get_json(check_city)
-        for toilet in toilets:
-            distance = get_distance(float(toilet['lat']), float(toilet['lng']), latitude, longitude)
-            if distance < toilet_distance:
-                toilet['distance'] = distance
-                zone_toilets.append(toilet)
-        if len(zone_toilets) > 0:
-            msgs = []
-            # 排序後取前4筆
-            zone_toilets.sort(key=lambda k: k['distance'])
-            for zone_toilet in zone_toilets[:4]:
-                msgs.append(LocationSendMessage(
-                    title=f"{zone_toilet['name']}({zone_toilet['grade']})",
-                    address=zone_toilet['address'],
-                    latitude=float(zone_toilet['lat']),
-                    longitude=float(zone_toilet['lng'])
-                ))
-            msgs.append(TextSendMessage(text=f'找到附近{toilet_distance}公尺內的公廁'))           
-            return msgs
-    return [TextSendMessage(text=f'附近{toilet_distance}公尺內找無公廁')]
+        for i in range(10):
+            search_toilet_distance += 100 * i
+            for toilet in toilets:
+                distance = get_distance(float(toilet['lat']), float(toilet['lng']), latitude, longitude)
+                if distance < search_toilet_distance:
+                    toilet['distance'] = distance
+                    zone_toilets.append(toilet)
+            if len(zone_toilets) > 0:
+                msgs = []
+                # 排序後取前4筆
+                zone_toilets.sort(key=lambda k: k['distance'])
+                for zone_toilet in zone_toilets[:4]:
+                    msgs.append(LocationSendMessage(
+                        title=f"{zone_toilet['name']}({zone_toilet['grade']})",
+                        address=zone_toilet['address'],
+                        latitude=float(zone_toilet['lat']),
+                        longitude=float(zone_toilet['lng'])
+                    ))
+                msgs.append(TextSendMessage(text=f'找到附近{search_toilet_distance}公尺內的公廁'))           
+                return msgs
+    return [TextSendMessage(text=f'附近{search_toilet_distance}公尺內找無公廁')]
 
 def update_toilet():
     offset = 0
