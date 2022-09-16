@@ -434,10 +434,14 @@ class Lottery():
         results = []
         try:
             url = f'{rapid_api_host}/get_latest_results/{self._game}/{cnt}'
+            print(url)
             resp = requests.get(url, headers=self._headers).json()
+            print(resp)
             if isinstance(resp, list):
                 for r in resp:
+                    print(r)
                     d = self._format(r)
+                    print(d)
                     if d and d['id']:
                         results.append(d)
         except Exception as ex:
