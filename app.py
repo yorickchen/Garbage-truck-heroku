@@ -356,7 +356,7 @@ class Lottery():
         self._headers = {
             'X-RapidAPI-Key': rapid_api_key, 
             'X-RapidAPI-Host': rapid_api_host,
-            'x-rapidapi-ua': 'RapidAPI-Playground'
+            'X-RapidAPI-Ua': 'RapidAPI-Playground'
         }
         self.db = LabRedis(host=redis_host, port=int(redis_port), pwd=redis_pwd)
 
