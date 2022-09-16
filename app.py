@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 
 from flask import Flask, abort, request
 
@@ -25,10 +25,13 @@ covid19_screen_data_url = os.environ.get("COVID19_SCREEN_DATA_URL")
 weather_tw_url = os.environ.get("WEATHER_TW_URL")
 weather_tw_token = os.environ.get("WEATHER_TW_TOKEN")
 epa_gov_token = os.environ.get("EPA_GOV_TOKEN")
+rapid_api_key = os.environ.get("RAPID_API_KEY")
 redis_host = os.environ.get("REDIS_HOST")
 redis_port = os.environ.get("REDIS_PORT")
 redis_pwd = os.environ.get("REDIS_PWD")
 epa_gov_url = 'https://data.epa.gov.tw/api/v2/FAC_P_07'
+rapid_api_host = 'https://taiwan-lottery-live.p.rapidapi.com'
+lottery_prefix = 'lottery_'
 home_city = '三重區'
 home_lat = 25.078088032882395
 home_lng = 121.49169181080875
@@ -49,6 +52,8 @@ class Route(enum.IntEnum):
     Covid19Screen = 3
     UpdateToilet = 4
     Toilet = 5
+    Lottery = 6
+    LotteryAnalysis = 7
 
 class LabRedis(): 
     def __init__(self, host: str, port: int, pwd: str):
@@ -62,12 +67,19 @@ class LabRedis():
         if value:
             return json.loads(value)
         return None
+    
+    def scan_keys(self, prefix):
+        try:
+            keys = [k for k in self.redis.scan_iter(f'{prefix}*')]
+            return keys
+        except:
+            return []
 
 @app.route("/", methods=["GET", "POST"])
 def callback():
     if request.method == "GET":
         return "Hello Heroku"
-    if request.method == "POST":
+    elif request.method == "POST":
         signature = request.headers["X-Line-Signature"]
         body = request.get_data(as_text=True)
         try:
@@ -75,6 +87,16 @@ def callback():
         except InvalidSignatureError:
             abort(400)
         return "OK"
+
+@app.route("/patch", methods=["POST"])
+def patch():
+    try:
+        if request.is_json:
+            body = request.get_json()
+            Lottery().import_data(body['data'])
+    except Exception as ex:
+        abort(400)
+    return "OK"
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
@@ -90,6 +112,10 @@ def handle_message(event):
         reply_msg = get_covid19_screening()
     elif route == Route.UpdateToilet:
         reply_msg = update_toilet()
+    elif route == Route.Lottery:
+        reply_msg = Lottery().get_latest()
+    elif route == Route.LotteryAnalysis:
+        reply_msg = Lottery().get_analysis()
     if reply_msg:
         reply = TextSendMessage(text=f"{reply_msg}")
         line_bot_api.reply_message(event.reply_token, reply)
@@ -101,7 +127,7 @@ def handle_location_message(event):
         line_bot_api.reply_message(event.reply_token, reply_msgs)
 
 def route_message(msg) -> Route:
-    if msg.lower() in ('go', '垃圾'):
+    if msg.lower() in ('垃圾車'):
         return Route.Realtime
     elif msg.lower() in ('weather', '天氣', '氣象'):
         return Route.Weather
@@ -109,6 +135,10 @@ def route_message(msg) -> Route:
         return Route.Covid19Screen
     elif msg.lower() in ('更新廁所資料'):
         return Route.UpdateToilet
+    elif msg.lower() in ('今彩539'):
+        return Route.Lottery
+    elif msg.lower() in ('539', '539a', '539分析', '今彩539分析'):
+        return Route.LotteryAnalysis
     return None
 
 def get_realtime():
@@ -319,3 +349,115 @@ def weekDayText(weekday):
         return '六'
     elif weekday == 6:
         return '日'
+
+class Lottery():
+    def __init__(self, game = '今彩539'):
+        self._game = game
+        self._headers = {'X-RapidAPI-Key': rapid_api_key, 'X-RapidAPI-Host': rapid_api_host}
+        self.db = LabRedis(host=redis_host, port=int(redis_port), pwd=redis_pwd)
+
+    def get_latest(self, cnt = 5):
+        # 取得最新一期開獎資料
+        datas = self._get_result_latest(cnt)
+        if datas and len(datas) > 0:
+            for data in datas:
+                self._sync_check(data)
+            return '\n'.join([f"{data['id']}期({data['date']}): {' '.join(numbers)}" for data in datas])
+        else:
+            return '查無資料'
+
+    def get_analysis(self):
+        # 取得分析資料
+        result = ''
+        try:
+            ds_keys = self.db.scan_keys(lottery_prefix)
+            ds = []
+            for ds_key in ds_keys:
+                ds.append(self.db.get_json(ds_key))
+            number_map = {i:0 for i in range(1, 40)}
+            top_dt = ''
+            for d in ds:
+                if d['date']:
+                    top_dt = d['date'] if top_dt == '' or d['date'] > top_dt else top_dt
+                if d['numbers'] and len(d['numbers']) > 0:
+                    for numstr in d['numbers']:
+                        num = int(numstr)
+                        if num not in number_map:
+                            number_map[num] = 0
+                        number_map[num] += 1
+            sort_numbers = [k for k, v in sorted(number_map.items(), key=lambda item: item[1])]
+            top5_nums = sort_numbers[-5:]
+            down5_nums = sort_numbers[:5]
+            result = f'最常出現5數: {" ".join(top5_nums)}\n'
+            result += f'最少出現5數: {" ".join(down5_nums)}\n'
+            result += f'計算總期數: {len(ds)}'
+            if top_dt:
+                result += f'計算最新日: {top_dt}'
+        except Exception as ex:
+            print(ex)
+        return result
+
+    def import_data(self, datas):
+        # 匯入資料
+        try:
+            for data in datas:
+                self._sync_check(data)
+        except:
+            pass         
+
+    def _cache_key(self, data):
+        if data and data['date']:
+            return f"{lottery_prefix}{data['date']}"
+        return None
+
+    def _sync_check(self, data):
+        # 檢查並寫入資料
+        key = self._cache_key(data)
+        if key:
+            store = self.db.get_json(key)
+            if not store:
+                self.db.set_json(key, data)
+
+    def _format(self, data):
+        result = {'id': None, 'date': None, 'numbers': []}
+        try:
+            if data:
+                result['id'] = data['id']
+                result['numbers'] = sorted(data['numbers'])
+                result['date'] = data['date']
+        except:
+            pass
+        return result
+
+    def _get_result_latest(self, cnt):
+        # 取得最近幾期資料
+        results = []
+        try:
+            url = f'{rapid_api_host}/get_latest_results/{self._game}/{cnt}'
+            resp = requests.get(url, headers=self._headers).json()
+            if isinstance(resp, list):
+                for r in resp:
+                    d = self._format(r)
+                    if d and d['id']:
+                        results.append(d)
+        except Exception as ex:
+            print(ex)
+        return results
+
+    def _get_result_by_date(self, dt):
+        # 取得指定日期資料
+        result = self._format(None)
+        try:
+            if isinstance(dt, datetime):
+                dt = dt.strftime('%Y-%m-%d')
+            elif dt:
+                dt = str(dt)
+            else:
+                dt = str(date.today())
+            url = f'{rapid_api_host}/get_result/{self._game}/{dt}'
+            resp = requests.get(url, headers=self._headers).json()
+            if resp:
+                result = self._format(resp)
+        except Exception as ex:
+            print(ex)
+        return result
