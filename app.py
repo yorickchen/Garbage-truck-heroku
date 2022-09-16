@@ -435,8 +435,11 @@ class Lottery():
         try:
             url = f'{rapid_api_host}/get_latest_results/{self._game}/{cnt}'
             print(url)
-            resp = requests.get(url, headers=self._headers).json()
+            resp = requests.get(url, headers=self._headers)
             print(resp)
+            print(resp.text)
+            print(resp.json())
+            resp = resp.json()
             if isinstance(resp, list):
                 for r in resp:
                     print(r)
