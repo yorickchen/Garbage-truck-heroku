@@ -353,7 +353,11 @@ def weekDayText(weekday):
 class Lottery():
     def __init__(self, game = '今彩539'):
         self._game = game
-        self._headers = {'X-RapidAPI-Key': rapid_api_key, 'X-RapidAPI-Host': rapid_api_host}
+        self._headers = {
+            'X-RapidAPI-Key': rapid_api_key, 
+            'X-RapidAPI-Host': rapid_api_host,
+            'x-rapidapi-ua': 'RapidAPI-Playground'
+        }
         self.db = LabRedis(host=redis_host, port=int(redis_port), pwd=redis_pwd)
 
     def get_latest(self, cnt = 5):
